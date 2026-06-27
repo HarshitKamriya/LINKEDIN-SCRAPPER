@@ -1,0 +1,188 @@
+Project overview
+- This is a Chrome extension named LinkedIn Scraper.
+- It helps extract LinkedIn Recruiter profile data and copy it to the clipboard as an HTML table.
+- The extension has two content-script modes:
+  - One for recruiter search results pages.
+  - One for a single recruiter profile page.
+
+Main files and roles
+- manifest.json
+  - Declares the extension metadata and permissions.
+  - Registers content scripts for:
+    - https://www.linkedin.com/recruiter/smartsearch*
+    - https://www.linkedin.com/recruiter/profile/*
+  - Loads background.js and jQuery in the background context.
+  - Uses a browser action popup via popup.html.
+
+- popup.js
+  - Handles the popup button click.
+  - Sends a message to the active tab with the command "extract".
+  - This triggers the scraping process in the relevant content script.
+
+- background.js
+  - Receives scraped HTML from the content script.
+  - Copies the HTML to the user clipboard in a formatted way.
+  - Uses chrome.runtime.onMessage.addListener to listen for messages.
+
+- linkedin_list.js
+  - Used when the user is on a LinkedIn Recruiter search results page.
+  - Scrapes multiple profiles from the result list.
+  - Builds a table of extracted profile information.
+  - Sends the final HTML table back to background.js for copying.
+
+- linkedin_profile.js
+  - Used when the user is on a single LinkedIn Recruiter profile page.
+  - Scrapes one profile and prepares it for clipboard export.
+  - Handles profile unlock prompts when needed.
+
+Function-by-function explanation
+1) background.js
+- copyFormatted(html)
+  - Purpose: creates a temporary DOM container, inserts the provided HTML, selects it, and copies it to the clipboard.
+  - How it is used: called when the content script sends scraped HTML to the background script.
+  - Why it exists: LinkedIn data is copied as rich HTML instead of plain text.
+
+- chrome.runtime.onMessage.addListener(function(message) {...})
+  - Purpose: listens for messages from content scripts.
+  - How it is used: receives the scraped HTML object and passes it to copyFormatted(message.html).
+
+2) popup.js
+- submit.onclick = function(element) {...}
+  - Purpose: runs when the popup button is clicked.
+  - How it is used: calls chrome.tabs.query to find the active tab and sends the extract command to the tab.
+  - Why it exists: it connects the popup UI to the scraping logic in the page.
+
+3) linkedin_list.js
+- generateTable(html_to_insert)
+  - Purpose: wraps the extracted rows inside an HTML table and basic styling.
+  - How it is used: creates the final HTML document that will be copied to the clipboard.
+
+- generateTableEntry(first, last, role, location, link)
+  - Purpose: builds one table row for a single profile.
+  - How it is used: called once for each scraped profile while building the final table.
+
+- generateBanner()
+  - Purpose: creates or updates a small status banner at the top of the LinkedIn page.
+  - How it is used: shows progress messages such as scraping status and completion.
+
+- generateFrame(url)
+  - Purpose: creates an invisible iframe pointing to the profile URL.
+  - How it is used: allows the script to load a profile page in the background and inspect its contents.
+
+- urlError(frame)
+  - Purpose: checks whether the iframe loaded an error page.
+  - How it is used: prevents scraping from continuing when LinkedIn returns an unexpected error page.
+
+- lockedProfile(frame)
+  - Purpose: waits until the profile page has loaded enough to determine whether the profile is locked.
+  - How it is used: used by getProfile() before extracting details.
+  - Logic: looks for the presence of the "Recruiting Activity" section and the "Unlock full profile" button.
+
+- unlock(frame)
+  - Purpose: attempts to unlock a locked profile by clicking the unlock button if needed.
+  - How it is used: called when getProfile() detects a locked profile.
+
+- titleCase(str)
+  - Purpose: capitalizes the first letter of each word in a string.
+  - How it is used: formats names and location values into a cleaner display format.
+
+- formatName(name)
+  - Purpose: splits a full name into first and last names and formats both parts.
+  - How it is used: converts raw LinkedIn display names into a usable first/last pair.
+
+- getDetails(frame)
+  - Purpose: extracts the profile data from the loaded iframe page.
+  - How it is used: called after the profile is confirmed to be unlocked.
+  - Extracts:
+    - first name
+    - last name
+    - job title
+    - location
+    - public profile URL
+  - Also tries to improve job title by matching the target company from the search page with the profile experience section.
+
+- getProfile(url)
+  - Purpose: wraps the entire profile loading and extraction flow into one asynchronous function.
+  - How it is used: called once per profile during run().
+  - Workflow:
+    - creates an iframe
+    - checks if profile is locked
+    - unlocks it if necessary
+    - extracts details
+    - removes the frame
+
+- run()
+  - Purpose: main scraping workflow for recruiter search results.
+  - How it is used: called when the content script receives the extract command.
+  - Workflow:
+    - finds all visible profiles on the search page
+    - loops through each profile
+    - skips profiles marked as not linked
+    - loads each profile via getProfile(url)
+    - builds a table of extracted rows
+    - sends the generated HTML to the background script for copying
+    - updates the status banner with completion info
+
+- chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {...})
+  - Purpose: listens for the popup's extract command.
+  - How it is used: receives the message, immediately responds, and starts run().
+
+4) linkedin_profile.js
+- generateTable(html_to_insert)
+  - Purpose: same as the list version; creates the final HTML table.
+
+- generateTableEntry(first, last, role, location, link)
+  - Purpose: creates the table row for one profile.
+
+- generateBanner()
+  - Purpose: shows scraping status on the current profile page.
+
+- lockedProfile()
+  - Purpose: checks whether the current LinkedIn profile page is locked.
+  - How it is used: called by getProfile().
+
+- unlock()
+  - Purpose: clicks the unlock button when the profile is locked.
+  - How it is used: used by getProfile() before reading profile details.
+
+- titleCase(str)
+  - Purpose: formats text into title case.
+
+- formatName(name)
+  - Purpose: splits and formats the display name into first and last name.
+
+- getDetails()
+  - Purpose: extracts the current profile's first name, last name, job title, location, and public profile URL directly from the page.
+  - How it is used: called after the profile has been unlocked.
+
+- getProfile()
+  - Purpose: runs the unlock-and-extract workflow for a single profile page.
+  - How it is used: called by run().
+  - Behavior: rejects if unlock fails, otherwise resolves with the extracted details.
+
+- run()
+  - Purpose: main execution function for the single-profile mode.
+  - How it is used: called when the content script receives the extract command.
+  - Workflow:
+    - extracts one profile
+    - builds a table row
+    - sends the HTML to the background script
+    - shows success or unlock-needed status
+
+- chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {...})
+  - Purpose: listens for the popup's extract command and starts scraping.
+
+How the extension works end to end
+1. The popup button is clicked.
+2. popup.js sends an extract command to the active tab.
+3. The correct content script runs based on the current LinkedIn page.
+4. The content script scrapes profile data.
+5. The data is converted into an HTML table.
+6. The content script sends that HTML to background.js.
+7. background.js copies the HTML to the clipboard.
+
+Important notes
+- The extension depends on jQuery.
+- It targets LinkedIn Recruiter pages only.
+- It works by injecting hidden iframes and reading DOM content from LinkedIn pages.
+- Some parts are fragile because they depend on LinkedIn's page structure and button text.
