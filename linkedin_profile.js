@@ -1,7 +1,6 @@
 // Scrape from LinkedIn Recruiter profile.
 // Created by Harshit Kamriya.
 
-// Creates a table which includes the extracted profiles
 function generateTable(html_to_insert) {
   return `
    <html>
@@ -17,7 +16,6 @@ function generateTable(html_to_insert) {
   </html>`;
 }
 
-// Inserts a given profile into table format
 function generateTableEntry(first, last, role, company, location, phone, email, link) {
   return `
   <tr>
@@ -58,198 +56,203 @@ function saveProfileRecord(profileData) {
   });
 }
 
-// Injects a banner into the webpage to show the status of Scraper
 function generateBanner() {
-  // If the banner exists update the color, otherwise generate it
   if ($("#status-recruiter").length) {
-    $("#status-recruiter").css("background-color","red");
+    $("#status-recruiter").css("background-color", "red");
   } else {
     $("body").append(`
-      <p id='status-recruiter'; style='top: 0; width:100%; color:white;
+      <p id='status-recruiter' style='top: 0; width:100%; color:white;
          background-color:red; position:fixed; text-align:center;
          z-index: 1000;'></p>
     `);
-  };
-}
-
-// Determines whether a given profile is locked
-function lockedProfile() {
-  return new Promise ((resolve, reject) => {
-    var checkExists = setInterval(async () => {
-      try {
-        // Uses the presence of the unlock button to determine if the profile
-        // is locked
-        let test_element = document.getElementsByTagName("button")[15];
-        // Resolves the promise based on the test element
-        if (test_element.innerText === "Unlock full profile") {
-          clearInterval(checkExists);
-          resolve(true);
-        } else {
-          clearInterval(checkExists);
-          resolve(false);
-        }
-      } catch (e) {}}, 500);
-  });
-}
-
-// Given a locked profile, unlocks it
-function unlock() {
-  return new Promise ((resolve, reject) => {
-    var checkExists = setInterval(async () => {
-      try {
-        // If the test element exists, then profile is unlocked
-        if ($(document).find('#topcard').find('.module-footer').find('.public-profile,  .searchable').find('a')[0]) {
-          clearInterval(checkExists);
-          resolve();
-        // Otherwise unlock button is pressed
-        } else {
-          document.getElementsByTagName("button")[15].click();
-        }
-      } catch (e) {}}, 2000);
-    });
-}
-
-// Converts a string to title case
-function titleCase(str){
-  if (str === undefined) {
-    return "";
   }
-  // Converts string to a lower case and puts it into an array
-   str = str.toLowerCase().split(' ');
-   let final = [];
-    // For each word in the string makes the first letter upper case
-    for(let  word of str){
-      if (word) {
-        final.push(word.charAt(0).toUpperCase()+ word.slice(1));
-      } else {
-        final.push('');
+}
+
+function cleanText(value) {
+  return (value || '').replace(/\s+/g, ' ').trim();
+}
+
+function getText(selectors, fallback) {
+  for (let selector of selectors) {
+    try {
+      const element = document.querySelector(selector);
+      if (element) {
+        const text = cleanText(element.innerText || element.textContent || '');
+        if (text) {
+          return text;
+        }
       }
-    }
-  return final.join(' ')
-}
-
-// Given a string, converts to title case and returns a 2 element array
-// with the first word as the first element and the remaining words as the
-// second
-function formatName(name) {
-  let nameSeperated;
-  try {
-    nameSeperated = name.replace(/\s+/, '\x01').split('\x01');
-  } catch (e) {
-    nameSeperated = [name, ""];
+    } catch (e) {}
   }
-  return [titleCase(nameSeperated[0]),titleCase(nameSeperated[1])];
+  return fallback || '';
 }
 
-// Tries to extract a phone number from the profile page if it is available
+function titleCase(str) {
+  if (str === undefined || str === null) {
+    return '';
+  }
+  str = String(str).toLowerCase().split(' ');
+  let final = [];
+  for (let word of str) {
+    if (word) {
+      final.push(word.charAt(0).toUpperCase() + word.slice(1));
+    } else {
+      final.push('');
+    }
+  }
+  return final.join(' ');
+}
+
+function formatName(name) {
+  let separated;
+  try {
+    separated = String(name).replace(/\s+/, '\x01').split('\x01');
+  } catch (e) {
+    separated = [name, ''];
+  }
+  return [titleCase(separated[0]), titleCase(separated[1] || '')];
+}
+
 function extractPhone() {
   try {
-    let telLink = $("a[href^='tel:']").first().attr("href");
+    const telLink = $("a[href^='tel:']").first().attr('href');
     if (telLink) {
-      return telLink.replace(/^tel:/i, "").trim();
+      return telLink.replace(/^tel:/i, '').trim();
     }
   } catch (e) {}
 
   try {
-    let text = $("body").text();
-    let match = text.match(/(\+?\d[\d\s().-]{7,}\d)/);
+    const text = $('body').text();
+    const match = text.match(/(\+?\d[\d\s().-]{7,}\d)/);
     if (match) {
       return match[1].trim();
     }
   } catch (e) {}
 
-  return "";
+  return '';
 }
 
-// Tries to extract an email address from the profile page if it is available
 function extractEmail() {
   try {
-    let mailtoLink = $("a[href^='mailto:']").first().attr("href");
+    const mailtoLink = $("a[href^='mailto:']").first().attr('href');
     if (mailtoLink) {
-      return mailtoLink.replace(/^mailto:/i, "").trim();
+      return mailtoLink.replace(/^mailto:/i, '').trim();
     }
   } catch (e) {}
 
   try {
-    let text = $("body").text();
-    let match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+    const text = $('body').text();
+    const match = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
     if (match) {
       return match[0].trim();
     }
   } catch (e) {}
 
-  return "";
+  return '';
 }
 
-// Given an unlocked LinkedIn profile, returns the first name, last name, job,
-// location, phone number, email and LinkedIn URL for the user
-function getDetails() {
-  let unformatted_name = document.getElementsByClassName("searchable")[0].innerText;
-  let job = document.getElementsByClassName("searchable")[1].innerText;
-  let location = document.getElementsByClassName("location")[0].innerText;
-  let company = "";
+function hasUnlockButton() {
   try {
-    company = $(document).find("#experience-section .position .company-name").first().text().trim();
-  } catch (e) {}
-  if (!company) {
-    try {
-      company = $(document).find(".top-card h2").first().text().trim();
-    } catch (e) {}
+    const buttons = Array.from(document.querySelectorAll('button, a'));
+    return buttons.some(function(el) {
+      const text = cleanText(el.innerText || el.textContent || '');
+      return /unlock/i.test(text);
+    });
+  } catch (e) {
+    return false;
   }
-  // Gets all enteries from the users experience section
-  let all_companies = $(document).find("#profile-experience").find(".position");
-  let phone = extractPhone();
-  let email = extractEmail();
-  // Gets the URL link of the subject's profile
-  element = $(document).find('#topcard').find('.module-footer').find('.public-profile,  .searchable').find('a')[0];
-  href = element.href;
-  // Splits name to first and last as well as converting to title case
-  let name = formatName(unformatted_name);
-  return [name[0], name[1], job, company, titleCase(location.split(',')[0]), phone, email, href];
 }
 
-// Given a URL of a LinkedIn profile, returns the subjects's details
-function getProfile() {
-  return new Promise (async (resolve, reject) => {
-    try {
-      // If the frame is locked, unlock it
-      let is_locked = await lockedProfile();
-      if (is_locked) {
-        reject();
+function lockedProfile() {
+  return new Promise(function(resolve) {
+    const startedAt = Date.now();
+    const check = function() {
+      const hasProfileContent = Boolean(getText(['h1', '.top-card-layout__title', '.pv-text-details__left-panel h1', '.text-heading-xlarge'], ''));
+      if (hasProfileContent) {
+        resolve(hasUnlockButton());
+        return;
       }
-      // Once unlock get the details from the profile
-      let details = getDetails();
-      resolve(details);
-    // If an error occurs, recreate the iframe with the users profile.
-    } catch (e) {};
+      if (Date.now() - startedAt > 10000) {
+        resolve(false);
+        return;
+      }
+      setTimeout(check, 500);
+    };
+    check();
   });
 }
 
-// Runs the Scraper program
+function unlock() {
+  return new Promise(function(resolve) {
+    const startedAt = Date.now();
+    const check = function() {
+      try {
+        const button = Array.from(document.querySelectorAll('button, a')).find(function(el) {
+          const text = cleanText(el.innerText || el.textContent || '');
+          return /unlock/i.test(text);
+        });
+        if (button) {
+          button.click();
+        }
+      } catch (e) {}
+
+      if (Date.now() - startedAt > 8000) {
+        resolve();
+        return;
+      }
+      setTimeout(check, 2000);
+    };
+    check();
+  });
+}
+
+function getDetails() {
+  const unformattedName = getText(['h1', '.top-card-layout__title', '.pv-text-details__left-panel h1', '.text-heading-xlarge'], '');
+  const job = getText(['.top-card-layout__headline', '.text-body-medium', '.pv-entity__summary-info h2', '.jobs-search__title', 'h2'], '');
+  const location = getText(['.top-card-layout__first-subline', '.pv-text-details__left-panel .text-body-small', '.location', '.text-body-small'], '');
+  const company = getText(['.top-card-layout__second-subline a', '.pv-entity__secondary-title', '.experience-item__subtitle', '.profile-section-card__title'], '');
+  const phone = extractPhone();
+  const email = extractEmail();
+  let href = window.location.href;
+  const name = formatName(unformattedName);
+  return [name[0], name[1], job, company, titleCase(location.split(',')[0]), phone, email, href];
+}
+
+function getProfile() {
+  return new Promise(function(resolve) {
+    (async function() {
+      try {
+        const is_locked = await lockedProfile();
+        if (is_locked) {
+          await unlock();
+        }
+        const details = getDetails();
+        resolve(details);
+      } catch (e) {
+        resolve(['', '', '', '', '', '', '', window.location.href]);
+      }
+    })();
+  });
+}
+
 async function run() {
-  // Stores the extracted profiles in html form
   let formated_profiles = '';
   try {
-    profile = await getProfile();
+    const profile = await getProfile();
     saveProfileRecord(profile);
-    formated_profiles += generateTableEntry(profile[0], profile[1], profile[2],
-                                            profile[3], profile[4], profile[5], profile[6], profile[7]);
-    // Generates the html
-    let html = generateTable(formated_profiles);
-    // Copies data to the users clipboard
+    formated_profiles += generateTableEntry(profile[0], profile[1], profile[2], profile[3], profile[4], profile[5], profile[6], profile[7]);
+    const html = generateTable(formated_profiles);
     chrome.runtime.sendMessage({html: html});
     generateBanner();
-    $("#status-recruiter").css("background-color","green");
-    $("#status-recruiter").text("Copied to clipboard!");
+    $('#status-recruiter').css('background-color', 'green');
+    $('#status-recruiter').text('Copied to clipboard!');
   } catch (e) {
     generateBanner();
     $('#status-recruiter').text('Please unlock profile');
   }
 }
 
-// Executes the program when UI button pressed
-chrome.runtime.onMessage.addListener(
-  function(request, sender, sendResponse) {
-    sendResponse({msg: "suc"});
-    run();
+chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  sendResponse({msg: 'suc'});
+  run();
 });
