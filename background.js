@@ -1,28 +1,31 @@
-// Renders html and copies it to the clipboard
-// Source: https://stackoverflow.com/questions/34191780/javascript-
-//         copy-string-to-clipboard-as-text-html
-function copyFormatted (html) {
-  var container = document.createElement('div')
-  container.innerHTML = html
-  var activeSheets = Array.prototype.slice.call(document.styleSheets)
-    .filter(function (sheet) {
-      return !sheet.disabled
-    })
-  document.body.appendChild(container)
-  window.getSelection().removeAllRanges()
-  var range = document.createRange()
-  range.selectNode(container)
-  window.getSelection().addRange(range)
-  document.execCommand('copy')
-  for (var i = 0; i < activeSheets.length; i++)
-    activeSheets[i].disabled = true
-  document.execCommand('copy')
-  for (var i = 0; i < activeSheets.length; i++)
-    activeSheets[i].disabled = false
-  document.body.removeChild(container)
+async function ensureOffscreenDocument() {
+  const hasDocument = await chrome.offscreen.hasDocument().catch(() => false);
+  if (!hasDocument) {
+    await chrome.offscreen.createDocument({
+      url: chrome.runtime.getURL('offscreen.html'),
+      reasons: ['CLIPBOARD'],
+      justification: 'Copy scraped HTML to the clipboard.'
+    });
+  }
 }
 
-// Listens for html
-chrome.runtime.onMessage.addListener(function(message) {
-      copyFormatted(message.html);
+chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
+  if (!message || !message.html) {
+    return false;
+  }
+
+  (async function () {
+    try {
+      await ensureOffscreenDocument();
+      const response = await chrome.runtime.sendMessage({
+        type: 'COPY_HTML',
+        html: message.html
+      });
+      sendResponse(response);
+    } catch (error) {
+      sendResponse({ ok: false, error: error.message });
+    }
+  })();
+
+  return true;
 });
