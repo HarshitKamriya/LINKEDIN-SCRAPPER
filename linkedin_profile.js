@@ -87,6 +87,15 @@ function getText(selectors, fallback) {
   return fallback || '';
 }
 
+function isLinkedInLoggedIn() {
+  try {
+    const text = cleanText(document.body.innerText || document.body.textContent || '');
+    return !/sign in|log in|join now/i.test(text) && !/sign in to continue/i.test(text);
+  } catch (e) {
+    return true;
+  }
+}
+
 function titleCase(str) {
   if (str === undefined || str === null) {
     return '';
@@ -236,6 +245,14 @@ function getProfile() {
 }
 
 async function run() {
+  generateBanner();
+
+  if (!isLinkedInLoggedIn()) {
+    $('#status-recruiter').css('background-color', 'red');
+    $('#status-recruiter').text('Please log in to LinkedIn first');
+    return;
+  }
+
   let formated_profiles = '';
   try {
     const profile = await getProfile();

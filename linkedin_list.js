@@ -68,6 +68,15 @@ function generateBanner() {
   }
 }
 
+function isLinkedInLoggedIn() {
+  try {
+    const text = cleanText(document.body.innerText || document.body.textContent || '');
+    return !/sign in|log in|join now/i.test(text) && !/sign in to continue/i.test(text);
+  } catch (e) {
+    return true;
+  }
+}
+
 function generateFrame(url) {
   var frame = document.createElement('iframe');
   frame.src = url;
@@ -316,10 +325,17 @@ function getProfile(url) {
 }
 
 async function run() {
+  generateBanner();
+
+  if (!isLinkedInLoggedIn()) {
+    $('#status-recruiter').css('background-color', 'red');
+    $('#status-recruiter').text('Please log in to LinkedIn first');
+    return;
+  }
+
   const containers = findProfileContainers();
   const number_of_profiles = containers.length;
   let formated_profiles = '';
-  generateBanner();
 
   for (let i = 0; i < number_of_profiles; i++) {
     const container = containers[i];
