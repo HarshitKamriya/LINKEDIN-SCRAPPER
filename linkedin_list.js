@@ -1,5 +1,5 @@
 // Scrape from LinkedIn Recruiter search result.
-// Created by David Golding - September 2019.
+// Created by Harshit Kamriya.
 
 // Creates a table which includes the extracted profiles
 function generateTable(html_to_insert) {
